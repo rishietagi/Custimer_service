@@ -4,6 +4,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "SmartCare API"
     API_V1_STR: str = "/api/v1"
     
+    GROQ_API_KEY: str | None = None
+    
     # CORS Origins
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:3000",

@@ -5,6 +5,8 @@ class ChatMessage(BaseModel):
     role: str
     content: str
     buttons: Optional[List[Dict[str, str]]] = None
+    audio_src: Optional[str] = None
+    tts_error: Optional[str] = None
 
 class ChatSessionCreate(BaseModel):
     # Optional field in case we want to customize or link it
@@ -22,6 +24,8 @@ class ChatSessionResponse(BaseModel):
     state_history: List[str]
     messages: List[ChatMessage]
     updated_at: str
+    audio: Optional[str] = None
+    transcript: Optional[str] = None
 
     class Config:
         from_attributes = True

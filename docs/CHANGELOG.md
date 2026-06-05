@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file. This projec
 
 ---
 
+## [1.1.0] - 2026-06-04
+### Added
+- Voice-First pipeline converting user spoken commands into text and playing spoken replies.
+- Built-in integration with Groq Whisper Large v3 for speech-to-text transcription.
+- Built-in integration with Groq canopylabs/orpheus-v1-english for text-to-speech voice responses.
+- Decoupled state machine parser using Groq Llama 3.3 for hybrid natural language understanding (NLU).
+- Deterministic regex-based fallback system if Groq APIs are rate-limited or unavailable.
+- Real-time voice interruption capability on the client, stopping assistant voice output when a user starts speaking/typing.
+- Microphone permission error handling, visual status logs (Listening, Transcribing, Thinking, Speaking, Error/Retry), and animated waveforms.
+
 ## [1.0.0] - 2026-06-04
 ### Added
 - Decoupled client-server architecture using a FastAPI ASGI server and a React + Vite + TypeScript client app.

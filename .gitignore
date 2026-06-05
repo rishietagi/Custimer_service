@@ -34,6 +34,7 @@ MANIFEST
 
 # Virtual Environments
 .venv
+.env
 venv
 ENV
 env

@@ -99,3 +99,32 @@ This document details the technologies selected for the SmartCare customer porta
 * **Pros:** Request/Response interceptors, automatic JSON transforms, cancels requests.
 * **Cons:** Small extra package dependency.
 * **Scalability Impact:** Simplifies centralized token/auth headers injection.
+
+## 13. Groq Cloud (AI Services Provider)
+* **What it is:** A high-speed inference engine providing open LLMs and speech services.
+* **Why it was selected:** Sub-second latency inference, which is critical for real-time voice conversations.
+* **Alternatives considered:** OpenAI API, Anthropic API, local models.
+* **Pros:** Blazing fast execution times, standard API endpoints compatibility.
+* **Cons:** Cloud dependency.
+* **Scalability Impact:** Supports rapid scale-up without investing in dedicated server GPU hardware.
+
+## 14. Whisper Large v3 (Speech-to-Text Model)
+* **What it is:** A state-of-the-art multilingual translation and transcription model from OpenAI.
+* **Why it was selected:** Extremely high transcription accuracy even for noisy user audio recordings.
+* **Alternatives considered:** Google Speech-to-Text, AssemblyAI.
+* **Pros:** Robust word mapping, handles appliance terminology.
+* **Cons:** Requires file uploads to external API.
+
+## 15. Canopy Labs Orpheus v1 (Text-to-Speech Model)
+* **What it is:** A high-fidelity English text-to-speech voice generation model.
+* **Why it was selected:** Generates warm, natural, human-like voice responses.
+* **Alternatives considered:** ElevenLabs, Google Text-to-Speech.
+* **Pros:** Clean wav audio output, clear articulation.
+* **Cons:** Cloud API calls introduce processing latency.
+
+## 16. Llama 3.3 / Llama 3.1 (Language Models)
+* **What it is:** High-performance open-source LLMs from Meta.
+* **Why it was selected:** Llama 3.3 70B Versatile acts as the primary parser for natural language understanding and response styling. Llama 3.1 8B Instant serves as a fast, lightweight fallback.
+* **Alternatives considered:** GPT-3.5, Claude Haiku.
+* **Pros:** High logical correctness, fast response generation.
+* **Cons:** Subject to API rate limits.

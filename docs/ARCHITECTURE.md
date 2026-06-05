@@ -83,3 +83,44 @@ stateDiagram-v2
     TICKET_SUBMITTED --> HOME_MENU : Restart
 ```
 * **Step Back Navigation:** Pushing previous state tags onto `state_history` lets users revert transitions by popping state tags and restoring previous chat data.
+
+---
+
+## 3. Voice Pipeline Sequence
+
+The voice dialogue features follow a sequential, decoupled pipeline:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Customer
+    participant FE as React Frontend (Vite)
+    participant BE as FastAPI Backend (Uvicorn)
+    participant WS as Whisper Large v3 (Groq)
+    participant LLM as Llama 3.3/3.1 NLU & Stylist (Groq)
+    participant FSM as Chat FSM Engine
+    participant TTS as Canopy Labs Orpheus (Groq)
+
+    User->>FE: Speaks command
+    FE->>FE: Records audio stream (WebM Blob)
+    FE->>BE: Uploads audio file via Multipart POST /voice
+    BE->>WS: Sends raw audio bytes
+    WS-->>BE: Returns transcribed text
+    BE->>BE: Sanitizes transcript
+    BE->>LLM: Parses user intent (NLU mapping)
+    LLM-->>BE: Returns structured FSM input (or clarification)
+    BE->>FSM: Executes FSM transition logic
+    FSM->>FSM: Commits state data / registers DB entries
+    FSM-->>BE: Returns next state prompt
+    BE->>LLM: Restyles prompt into natural conversational spoken reply
+    LLM-->>BE: Returns natural spoken response string
+    BE->>TTS: Submits spoken reply string
+    TTS-->>BE: Returns raw WAV audio bytes
+    BE-->>FE: Returns ChatSessionResponse (JSON) + audio base64 + transcript text
+    FE->>User: Displays text transcript & updates active form components
+    FE->>User: Plays voice response audio (HTML5 Audio player)
+```
+
+* **Interruption Handling:** The frontend monitors user actions (microphone clicks, keyboard typing) and instantly stops active HTML5 audio playback to ensure smooth, natural pacing.
+* **Deterministic Fallback:** If Groq services fail or rate-limit requests, the backend falls back to local regex-based parsing rules and standard text responses, ensuring high availability.
+

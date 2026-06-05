@@ -151,10 +151,15 @@ The SmartCare backend services expose REST APIs prefixed under `/api/v1`. The in
 
 ## 6. Guided Chat Session Service (`/chat`)
 
+### Schema Additions: `ChatSessionResponse`
+The chat session response schema includes optional voice and transcription fields to support voice pipelines without bloating the database:
+- `audio`: `string | null` (base64-encoded WAV voice stream of the assistant's reply)
+- `transcript`: `string | null` (transcribed user text, populated for voice messages)
+
 ### Initialize Session
 * **Endpoint:** `POST /api/v1/chat/session`
 * **Query Parameters:** `user_id`
-* **Response:** `ChatSessionResponse`
+* **Response:** `ChatSessionResponse` (populates `audio` with the greeting speech)
 
 ### Post Chat Input / Response
 * **Endpoint:** `POST /api/v1/chat/session/{session_id}/message`
@@ -165,10 +170,19 @@ The SmartCare backend services expose REST APIs prefixed under `/api/v1`. The in
     "user_display_str": "Category Selection: Refrigerator"
   }
   ```
-* **Response:** `ChatSessionResponse` (returns updated FSM state, data, and message logs).
+* **Response:** `ChatSessionResponse` (returns updated FSM state, data, message logs, and `audio` response)
+
+### Post Voice Input / Response
+* **Endpoint:** `POST /api/v1/chat/session/{session_id}/voice`
+* **Request Format:** `multipart/form-data`
+* **Form Fields:**
+  * `file`: `UploadFile` (audio recording blob, e.g., webm, ogg, or wav)
+* **Response:** `ChatSessionResponse` (returns FSM state, message logs, user `transcript` transcription, and assistant `audio` reply)
 
 ### Undo last step (Go Back)
 * **Endpoint:** `POST /api/v1/chat/session/{session_id}/back`
+* **Response:** `ChatSessionResponse`
 
 ### Restart Chat Flow
 * **Endpoint:** `POST /api/v1/chat/session/{session_id}/restart`
+* **Response:** `ChatSessionResponse`

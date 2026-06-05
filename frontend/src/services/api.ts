@@ -111,6 +111,16 @@ export const api = {
       });
       return res.data;
     },
+    postVoiceMessage: async (sessionId: string, audioBlob: Blob) => {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'voice_input.webm');
+      const res = await client.post(`/chat/session/${sessionId}/voice`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return res.data;
+    },
     stepBack: async (sessionId: string) => {
       const res = await client.post(`/chat/session/${sessionId}/back`);
       return res.data;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, RotateCcw, ArrowLeft, Loader2, Sparkles, User, AlertCircle } from 'lucide-react';
+import { Send, RotateCcw, ArrowLeft, Loader2, Sparkles, User, AlertCircle, Mic, MicOff, Volume2, VolumeX, Play } from 'lucide-react';
 
 interface ChatAssistantProps {
   user: any;
@@ -66,6 +66,184 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
   const [textInput3, setTextInput3] = useState('');
   const [textInput4, setTextInput4] = useState('');
   const [textareaInput, setTextareaInput] = useState('');
+  const [freeTextInput, setFreeTextInput] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking'>('idle');
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  const [currentPlayingAudioSrc, setCurrentPlayingAudioSrc] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [ttsWarning, setTtsWarning] = useState('');
+
+  const checkLastMessageForTtsError = (sess: any) => {
+    if (sess && sess.messages && sess.messages.length > 0) {
+      const lastMsg = sess.messages[sess.messages.length - 1];
+      if (lastMsg.role === 'assistant' && lastMsg.tts_error) {
+        setTtsWarning(lastMsg.tts_error);
+      }
+    }
+  };
+
+  // Stop audio response on unmount
+  useEffect(() => {
+    return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+      }
+    };
+  }, []);
+
+  const playAudioResponse = (audioUrlOrBase64: string, forcePlay: boolean = false) => {
+    if (isMuted && !forcePlay) return;
+    if (forcePlay && isMuted) {
+      setIsMuted(false); // Unmute if they explicitly click play/replay
+    }
+    stopAudioResponse();
+    setTtsWarning('');
+    try {
+      let audioUrl = '';
+      if (audioUrlOrBase64.startsWith('/api') || audioUrlOrBase64.startsWith('http') || audioUrlOrBase64.startsWith('/static')) {
+        audioUrl = audioUrlOrBase64;
+      } else {
+        audioUrl = `data:audio/wav;base64,${audioUrlOrBase64}`;
+      }
+      const audio = new Audio(audioUrl);
+      audioPlayerRef.current = audio;
+      setVoiceStatus('speaking');
+      setCurrentPlayingAudioSrc(audioUrlOrBase64);
+
+      audio.onended = () => {
+        setVoiceStatus('idle');
+        audioPlayerRef.current = null;
+        setCurrentPlayingAudioSrc(null);
+      };
+
+      audio.onerror = () => {
+        setVoiceStatus('idle');
+        audioPlayerRef.current = null;
+        setCurrentPlayingAudioSrc(null);
+        setTtsWarning('Failed to play assistant voice output.');
+      };
+
+      audio.play().catch((err) => {
+        console.error("Audio playback failed", err);
+        setVoiceStatus('idle');
+        audioPlayerRef.current = null;
+        setCurrentPlayingAudioSrc(null);
+        setTtsWarning('Voice playback was blocked by browser or muted. Click anywhere to enable audio.');
+      });
+    } catch (err) {
+      console.error("Failed to play audio", err);
+      setVoiceStatus('idle');
+      setCurrentPlayingAudioSrc(null);
+      setTtsWarning('Voice output playback error.');
+    }
+  };
+
+  const stopAudioResponse = () => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    setVoiceStatus('idle');
+    setCurrentPlayingAudioSrc(null);
+  };
+
+  const replayLastResponse = () => {
+    if (!session || !session.messages) return;
+    const assistantMessages = session.messages.filter((m: any) => m.role === 'assistant');
+    if (assistantMessages.length > 0) {
+      const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
+      if (lastAssistantMsg.audio_src) {
+        playAudioResponse(lastAssistantMsg.audio_src, true);
+      } else if (session.audio) {
+        playAudioResponse(session.audio, true);
+      } else {
+        setTtsWarning("No audio available to replay.");
+      }
+    } else {
+      setTtsWarning("No assistant messages to replay.");
+    }
+  };
+
+  const startRecording = async () => {
+    stopAudioResponse();
+    setErrorMsg('');
+    setVoiceStatus('listening');
+    audioChunksRef.current = [];
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options = { mimeType: 'audio/webm' };
+      }
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        await handleVoiceSubmit(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err: any) {
+      console.error("Microphone access failed", err);
+      setVoiceStatus('idle');
+      setErrorMsg('Microphone access denied or not available. Please grant microphone permission to use voice features.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleVoiceSubmit = async (audioBlob: Blob) => {
+    if (!session) return;
+    setActionLoading(true);
+    setVoiceStatus('transcribing');
+    setErrorMsg('');
+
+    try {
+      const updatedSession = await api.chat.postVoiceMessage(session.session_id, audioBlob);
+      setVoiceStatus('thinking');
+
+      setTimeout(() => {
+        setSession(updatedSession);
+        checkLastMessageForTtsError(updatedSession);
+        setActionLoading(false);
+
+        const finalStates = ["BOOKING_CONFIRMATION", "TICKET_SUBMITTED", "ORDER_CALLBACK_CONFIRM", "ORDER_ESCALATE_CONFIRM"];
+        if (finalStates.includes(updatedSession.current_state)) {
+          onRefreshDashboard();
+        }
+
+        if (updatedSession.audio) {
+          playAudioResponse(updatedSession.audio);
+        } else {
+          setVoiceStatus('idle');
+        }
+      }, 500);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.detail || 'Failed to process voice request.');
+      setVoiceStatus('idle');
+      setActionLoading(false);
+    }
+  };
 
   // FAQ mock list matching state
   const faqs = [
@@ -97,6 +275,10 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
         }
         setSession(currentSession);
         localStorage.setItem(`chat_sess_${user.user_id}`, currentSession.session_id);
+        checkLastMessageForTtsError(currentSession);
+        if (currentSession.audio) {
+          playAudioResponse(currentSession.audio);
+        }
       } catch (err: any) {
         setErrorMsg('Failed to initialize support chatbot.');
       } finally {
@@ -117,6 +299,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
 
   const handleAction = async (inputValue: any, displayStr: string) => {
     if (!session) return;
+    stopAudioResponse(); // Interruption: stop current speaking immediately
     setActionLoading(true);
     setTyping(true);
     setErrorMsg('');
@@ -137,12 +320,19 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
       // Artificial short delay for typing feel
       setTimeout(() => {
         setSession(updatedSession);
+        checkLastMessageForTtsError(updatedSession);
         setTyping(false);
         setActionLoading(false);
+        
         // Refresh dashboard statistics if we completed booking / tickets
         const finalStates = ["BOOKING_CONFIRMATION", "TICKET_SUBMITTED", "ORDER_CALLBACK_CONFIRM", "ORDER_ESCALATE_CONFIRM"];
         if (finalStates.includes(updatedSession.current_state)) {
           onRefreshDashboard();
+        }
+
+        // Play audio response if available
+        if (updatedSession.audio) {
+          playAudioResponse(updatedSession.audio);
         }
       }, 600);
 
@@ -155,11 +345,16 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
 
   const handleBack = async () => {
     if (!session || actionLoading) return;
+    stopAudioResponse(); // Interruption: stop current speaking
     setActionLoading(true);
     setErrorMsg('');
     try {
       const updatedSession = await api.chat.stepBack(session.session_id);
       setSession(updatedSession);
+      checkLastMessageForTtsError(updatedSession);
+      if (updatedSession.audio) {
+        playAudioResponse(updatedSession.audio);
+      }
     } catch (err: any) {
       setErrorMsg(err.response?.data?.detail || 'Cannot go back further.');
     } finally {
@@ -170,11 +365,16 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
   const handleRestart = async () => {
     if (!session || actionLoading) return;
     if (!window.confirm('Are you sure you want to restart the chatbot assistant flow?')) return;
+    stopAudioResponse(); // Interruption: stop current speaking
     setActionLoading(true);
     setErrorMsg('');
     try {
       const updatedSession = await api.chat.restart(session.session_id);
       setSession(updatedSession);
+      checkLastMessageForTtsError(updatedSession);
+      if (updatedSession.audio) {
+        playAudioResponse(updatedSession.audio);
+      }
     } catch (err: any) {
       setErrorMsg('Failed to restart conversation.');
     } finally {
@@ -199,24 +399,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
 
     switch (currentState) {
       case 'PRODUCT_MODEL':
-        return (
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            handleAction(textInput, `Model number: ${textInput}`);
-          }} className="flex items-center gap-2 w-full">
-            <input
-              type="text"
-              required
-              placeholder="e.g. LFXS26973S"
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-lg py-2.5 px-4 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all"
-            />
-            <button type="submit" className="btn-premium p-2.5 flex items-center justify-center shrink-0">
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-        );
+        return null;
 
       case 'PRODUCT_PURCHASE_DATE':
         return (
@@ -239,24 +422,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
         );
 
       case 'PRODUCT_SERIAL':
-        return (
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            handleAction(textInput, `Serial number: ${textInput}`);
-          }} className="flex items-center gap-2 w-full">
-            <input
-              type="text"
-              required
-              placeholder="e.g. REF123456789 (min 5 chars)"
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-lg py-2.5 px-4 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all"
-            />
-            <button type="submit" className="btn-premium p-2.5 flex items-center justify-center shrink-0">
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-        );
+        return null;
 
       case 'PRODUCT_INSTALL_DATE':
         return (
@@ -848,6 +1014,15 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[calc(100vh-140px)] overflow-hidden">
+      <style>{`
+        @keyframes soundWave {
+          0% { height: 4px; }
+          100% { height: 16px; }
+        }
+        .equalizer-bar {
+          animation: soundWave 0.5s ease-in-out infinite alternate;
+        }
+      `}</style>
       {/* Chat Sub-Header */}
       <div className="bg-white border-b border-gray-100 p-4 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-2">
@@ -867,6 +1042,33 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
 
         {/* Back and Restart Controls */}
         <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              const newMuted = !isMuted;
+              setIsMuted(newMuted);
+              if (newMuted) {
+                stopAudioResponse();
+              }
+            }}
+            className={`flex items-center justify-center p-2 rounded-lg transition-colors border shadow-sm ${
+              isMuted 
+                ? 'text-red-500 bg-red-50 border-red-100 hover:bg-red-100' 
+                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50 border-gray-100'
+            }`}
+            title={isMuted ? "Unmute Assistant Voice" : "Mute Assistant Voice"}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={replayLastResponse}
+            disabled={actionLoading || !session?.messages?.length}
+            className="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none transition-colors border border-gray-100 shadow-sm"
+            title="Replay last spoken response"
+          >
+            <Play className="w-4 h-4" />
+          </button>
           <button
             onClick={handleBack}
             disabled={actionLoading || !session?.state_history?.length}
@@ -917,6 +1119,37 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
                       }} 
                     />
                   </div>
+
+                  {isBot && msg.audio_src && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (currentPlayingAudioSrc === msg.audio_src) {
+                          stopAudioResponse();
+                        } else {
+                          playAudioResponse(msg.audio_src, true);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-brand-red mt-0.5 self-start ml-1 transition-colors bg-white hover:bg-gray-50 border border-gray-200/60 rounded-lg px-2.5 py-1 shadow-sm"
+                      title={currentPlayingAudioSrc === msg.audio_src ? "Stop Audio" : "Play Audio"}
+                    >
+                      {currentPlayingAudioSrc === msg.audio_src ? (
+                        <>
+                          <div className="flex items-end gap-[3px] h-3 w-4">
+                            <span className="w-0.5 bg-brand-red rounded-full equalizer-bar" style={{ height: '4px', animationDelay: '0.1s' }} />
+                            <span className="w-0.5 bg-brand-red rounded-full equalizer-bar" style={{ height: '4px', animationDelay: '0.3s' }} />
+                            <span className="w-0.5 bg-brand-red rounded-full equalizer-bar" style={{ height: '4px', animationDelay: '0.0s' }} />
+                          </div>
+                          <span className="text-brand-red font-semibold animate-pulse">Playing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="w-3.5 h-3.5 text-gray-500" />
+                          <span>Listen</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   {/* Suggest Quick action buttons */}
                   {isBot && msg.buttons && msg.buttons.length > 0 && idx === session.messages.length - 1 && !actionLoading && (
@@ -969,19 +1202,138 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
         </div>
       )}
 
+      {/* Non-blocking TTS Warning */}
+      {ttsWarning && (
+        <div className="bg-amber-50 text-amber-700 text-xs p-3 border-t border-b border-amber-100 flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span>{ttsWarning}</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setTtsWarning('')}
+            className="text-amber-500 hover:text-amber-800 text-xs font-semibold px-2"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Dynamic Form Panel */}
-      <div className="bg-white border-t border-gray-100 p-4 shrink-0 shadow-inner flex flex-col items-center">
+      <div className="bg-white border-t border-gray-100 p-4 shrink-0 shadow-inner flex flex-col items-center w-full">
         {renderActiveForm()}
 
-        {/* Info label if no inputs required */}
-        {(!renderActiveForm() && !actionLoading && (!session?.messages[session.messages.length - 1]?.buttons?.length)) && (
-          <span className="text-xs text-gray-400 font-medium">Use the action buttons suggested above to reply to the assistant.</span>
+        {/* Voice Status Indicator Banner */}
+        {voiceStatus !== 'idle' && (
+          <div className="flex items-center gap-2 text-xs font-semibold py-1.5 px-3 rounded-full bg-gray-100 text-gray-600 mb-2 mt-2">
+            {voiceStatus === 'listening' && (
+              <div className="flex items-center gap-2 animate-pulse">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
+                <span className="text-red-600 font-bold">Listening... (Speak now)</span>
+              </div>
+            )}
+            {voiceStatus === 'transcribing' && (
+              <div className="flex items-center gap-2 animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                <span className="text-blue-600">Transcribing voice input...</span>
+              </div>
+            )}
+            {voiceStatus === 'thinking' && (
+              <div className="flex items-center gap-2 animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600" />
+                <span className="text-purple-600">Processing response...</span>
+              </div>
+            )}
+            {voiceStatus === 'speaking' && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-end gap-[3px] h-4 w-5">
+                  <span className="w-0.5 bg-green-500 rounded-full equalizer-bar" style={{ height: '4px', animationDelay: '0.1s' }} />
+                  <span className="w-0.5 bg-green-500 rounded-full equalizer-bar" style={{ height: '4px', animationDelay: '0.3s' }} />
+                  <span className="w-0.5 bg-green-500 rounded-full equalizer-bar" style={{ height: '4px', animationDelay: '0.0s' }} />
+                  <span className="w-0.5 bg-green-500 rounded-full equalizer-bar" style={{ height: '4px', animationDelay: '0.4s' }} />
+                  <span className="w-0.5 bg-green-500 rounded-full equalizer-bar" style={{ height: '4px', animationDelay: '0.2s' }} />
+                </div>
+                <span className="text-green-600 font-bold">Assistant speaking...</span>
+                <button 
+                  type="button" 
+                  onClick={stopAudioResponse} 
+                  className="ml-2 text-xs text-gray-400 hover:text-gray-700 underline font-normal"
+                >
+                  Stop
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
+        {/* Persistent Voice + Text Input Bar */}
+        <div className="flex items-center gap-2 w-full mt-2">
+          <button
+            type="button"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={actionLoading}
+            className={`p-3 rounded-full flex items-center justify-center shrink-0 transition-all ${
+              isRecording
+                ? 'bg-red-600 text-white animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)]'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900'
+            }`}
+            title={isRecording ? "Stop Recording" : "Speak to Assistant"}
+          >
+            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
+          
+          <input
+            type="text"
+            value={freeTextInput}
+            onChange={(e) => {
+              setFreeTextInput(e.target.value);
+              stopAudioResponse(); // Interruption: stop audio on typing
+            }}
+            placeholder={
+              isRecording
+                ? "Listening..."
+                : voiceStatus === 'transcribing'
+                ? "Transcribing..."
+                : voiceStatus === 'thinking'
+                ? "Thinking..."
+                : currentState === 'PRODUCT_MODEL'
+                ? "Type or speak your product model number (e.g. LFXS26973S)..."
+                : currentState === 'PRODUCT_SERIAL'
+                ? "Type or speak the serial number (e.g. REF12345)..."
+                : currentState === 'PRODUCT_PURCHASE_DATE'
+                ? "Type, speak, or select purchase date (YYYY-MM-DD)..."
+                : currentState === 'PRODUCT_INSTALL_DATE'
+                ? "Type, speak, or select installation date (YYYY-MM-DD)..."
+                : "Ask me a question or type a reply..."
+            }
+            disabled={actionLoading || isRecording}
+            className="flex-1 bg-gray-50 border border-gray-200 rounded-full py-2.5 px-4 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && freeTextInput.trim()) {
+                handleAction(freeTextInput, freeTextInput);
+                setFreeTextInput('');
+              }
+            }}
+          />
+          
+          <button
+            onClick={() => {
+              if (freeTextInput.trim()) {
+                handleAction(freeTextInput, freeTextInput);
+                setFreeTextInput('');
+              }
+            }}
+            disabled={!freeTextInput.trim() || actionLoading || isRecording}
+            className="p-2.5 rounded-full bg-brand-red hover:bg-red-700 text-white disabled:opacity-40 flex items-center justify-center transition-all shrink-0"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
+
         {actionLoading && (
-          <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
-            <Loader2 className="w-4 h-4 animate-spin text-brand-red" />
-            <span>Processing transition...</span>
+          <div className="flex items-center gap-2 text-xs text-gray-400 py-1 mt-1">
+            <Loader2 className="w-3 h-3 animate-spin text-brand-red" />
+            <span>Processing...</span>
           </div>
         )}
       </div>

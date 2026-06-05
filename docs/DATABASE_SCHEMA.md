@@ -162,5 +162,5 @@ Stores active FSM chat history.
 * **current_state** (TEXT): Active node in FSM (e.g. `HOME_MENU`).
 * **chat_data** (TEXT): Stringified JSON object storing diagnostic state variables.
 * **state_history** (TEXT): Stringified JSON list of previous states (for stack undos).
-* **messages** (TEXT): Stringified JSON list of chat bubbles history.
+* **messages** (TEXT): Stringified JSON list of chat bubbles history. Messages format: `{"role": "user" | "assistant", "content": "text description", "buttons": [{label: "x", value: "y"}] | null}`. Note: base64 voice responses are generated and returned in REST API payloads on-the-fly and are not persisted in SQLite to prevent database bloat.
 * **updated_at** (TEXT)

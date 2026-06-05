@@ -1,9 +1,14 @@
 import hashlib
 from datetime import datetime, date, timedelta
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+import os
 
 from backend.app.core.config import settings
 from backend.app.database.session import engine, SessionLocal
@@ -28,6 +33,12 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Mount Static Files for audio/reference files
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # backend/app
+STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")  # backend/static
+os.makedirs(os.path.join(STATIC_DIR, "audio"), exist_ok=True)
+app.mount("/api/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Set CORS
 app.add_middleware(
