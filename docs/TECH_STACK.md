@@ -128,3 +128,10 @@ This document details the technologies selected for the SmartCare customer porta
 * **Alternatives considered:** GPT-3.5, Claude Haiku.
 * **Pros:** High logical correctness, fast response generation.
 * **Cons:** Subject to API rate limits.
+
+## 17. Web Speech API (SpeechSynthesis Fallback)
+* **What it is:** A native web browser API for text-to-speech synthesis.
+* **Why it was selected:** Serves as a zero-dependency, zero-cost, instant client-side fallback if the Groq backend TTS is rate-limited, requires terms acceptance, or fails.
+* **Alternatives considered:** Backend fallback like gTTS or pyttsx3.
+* **Pros:** Instant playback, offline execution capability, zero network latency, zero setup required.
+* **Cons:** Voice synthesis quality is dependent on the host operating system and browser's built-in voices.

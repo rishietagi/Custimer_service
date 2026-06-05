@@ -93,10 +93,59 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
       if (audioPlayerRef.current) {
         audioPlayerRef.current.pause();
       }
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
     };
   }, []);
 
-  const playAudioResponse = (audioUrlOrBase64: string, forcePlay: boolean = false) => {
+  const speakTextFallback = (text: string, forcePlay: boolean = false) => {
+    if (isMuted && !forcePlay) return;
+    if (forcePlay && isMuted) {
+      setIsMuted(false);
+    }
+    stopAudioResponse();
+    setTtsWarning('');
+    try {
+      const cleanText = text
+        .replace(/<[^>]*>/g, '') // remove HTML tags
+        .replace(/\*\*/g, '')    // remove bold markdown
+        .replace(/###/g, '')     // remove headings
+        .trim();
+
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        const voices = window.speechSynthesis.getVoices();
+        const englishVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || 
+                             voices.find(v => v.lang.startsWith('en')) || 
+                             voices[0];
+        if (englishVoice) {
+          utterance.voice = englishVoice;
+        }
+
+        utterance.onstart = () => {
+          setVoiceStatus('speaking');
+        };
+
+        utterance.onend = () => {
+          setVoiceStatus('idle');
+        };
+
+        utterance.onerror = (e) => {
+          console.error("SpeechSynthesis error", e);
+          setVoiceStatus('idle');
+        };
+
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch (err) {
+      console.error("Failed to speak text via browser fallback", err);
+      setVoiceStatus('idle');
+    }
+  };
+
+  const playAudioResponse = (audioUrlOrBase64: string, forcePlay: boolean = false, textFallback?: string) => {
     if (isMuted && !forcePlay) return;
     if (forcePlay && isMuted) {
       setIsMuted(false); // Unmute if they explicitly click play/replay
@@ -125,7 +174,11 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
         setVoiceStatus('idle');
         audioPlayerRef.current = null;
         setCurrentPlayingAudioSrc(null);
-        setTtsWarning('Failed to play assistant voice output.');
+        if (textFallback) {
+          speakTextFallback(textFallback, forcePlay);
+        } else {
+          setTtsWarning('Failed to play assistant voice output.');
+        }
       };
 
       audio.play().catch((err) => {
@@ -133,13 +186,21 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
         setVoiceStatus('idle');
         audioPlayerRef.current = null;
         setCurrentPlayingAudioSrc(null);
-        setTtsWarning('Voice playback was blocked by browser or muted. Click anywhere to enable audio.');
+        if (textFallback) {
+          speakTextFallback(textFallback, forcePlay);
+        } else {
+          setTtsWarning('Voice playback was blocked by browser or muted. Click anywhere to enable audio.');
+        }
       });
     } catch (err) {
       console.error("Failed to play audio", err);
       setVoiceStatus('idle');
       setCurrentPlayingAudioSrc(null);
-      setTtsWarning('Voice output playback error.');
+      if (textFallback) {
+        speakTextFallback(textFallback, forcePlay);
+      } else {
+        setTtsWarning('Voice output playback error.');
+      }
     }
   };
 
@@ -147,6 +208,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
       audioPlayerRef.current = null;
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
     setVoiceStatus('idle');
     setCurrentPlayingAudioSrc(null);
@@ -158,11 +222,11 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
     if (assistantMessages.length > 0) {
       const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
       if (lastAssistantMsg.audio_src) {
-        playAudioResponse(lastAssistantMsg.audio_src, true);
+        playAudioResponse(lastAssistantMsg.audio_src, true, lastAssistantMsg.content);
       } else if (session.audio) {
-        playAudioResponse(session.audio, true);
+        playAudioResponse(session.audio, true, lastAssistantMsg.content);
       } else {
-        setTtsWarning("No audio available to replay.");
+        speakTextFallback(lastAssistantMsg.content, true);
       }
     } else {
       setTtsWarning("No assistant messages to replay.");
@@ -232,8 +296,12 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
           onRefreshDashboard();
         }
 
+        const assistantMessages = updatedSession.messages?.filter((m: any) => m.role === 'assistant') || [];
+        const lastMsg = assistantMessages[assistantMessages.length - 1];
         if (updatedSession.audio) {
-          playAudioResponse(updatedSession.audio);
+          playAudioResponse(updatedSession.audio, false, lastMsg?.content);
+        } else if (lastMsg) {
+          speakTextFallback(lastMsg.content);
         } else {
           setVoiceStatus('idle');
         }
@@ -276,8 +344,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
         setSession(currentSession);
         localStorage.setItem(`chat_sess_${user.user_id}`, currentSession.session_id);
         checkLastMessageForTtsError(currentSession);
+        
+        const assistantMessages = currentSession.messages?.filter((m: any) => m.role === 'assistant') || [];
+        const lastMsg = assistantMessages[assistantMessages.length - 1];
         if (currentSession.audio) {
-          playAudioResponse(currentSession.audio);
+          playAudioResponse(currentSession.audio, false, lastMsg?.content);
+        } else if (lastMsg) {
+          speakTextFallback(lastMsg.content);
         }
       } catch (err: any) {
         setErrorMsg('Failed to initialize support chatbot.');
@@ -330,9 +403,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
           onRefreshDashboard();
         }
 
-        // Play audio response if available
+        // Play audio response if available, or fall back to browser TTS
+        const assistantMessages = updatedSession.messages?.filter((m: any) => m.role === 'assistant') || [];
+        const lastMsg = assistantMessages[assistantMessages.length - 1];
         if (updatedSession.audio) {
-          playAudioResponse(updatedSession.audio);
+          playAudioResponse(updatedSession.audio, false, lastMsg?.content);
+        } else if (lastMsg) {
+          speakTextFallback(lastMsg.content);
         }
       }, 600);
 
@@ -352,8 +429,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
       const updatedSession = await api.chat.stepBack(session.session_id);
       setSession(updatedSession);
       checkLastMessageForTtsError(updatedSession);
+      
+      const assistantMessages = updatedSession.messages?.filter((m: any) => m.role === 'assistant') || [];
+      const lastMsg = assistantMessages[assistantMessages.length - 1];
       if (updatedSession.audio) {
-        playAudioResponse(updatedSession.audio);
+        playAudioResponse(updatedSession.audio, false, lastMsg?.content);
+      } else if (lastMsg) {
+        speakTextFallback(lastMsg.content);
       }
     } catch (err: any) {
       setErrorMsg(err.response?.data?.detail || 'Cannot go back further.');
@@ -372,8 +454,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
       const updatedSession = await api.chat.restart(session.session_id);
       setSession(updatedSession);
       checkLastMessageForTtsError(updatedSession);
+      
+      const assistantMessages = updatedSession.messages?.filter((m: any) => m.role === 'assistant') || [];
+      const lastMsg = assistantMessages[assistantMessages.length - 1];
       if (updatedSession.audio) {
-        playAudioResponse(updatedSession.audio);
+        playAudioResponse(updatedSession.audio, false, lastMsg?.content);
+      } else if (lastMsg) {
+        speakTextFallback(lastMsg.content);
       }
     } catch (err: any) {
       setErrorMsg('Failed to restart conversation.');

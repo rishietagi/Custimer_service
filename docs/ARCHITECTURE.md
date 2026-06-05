@@ -118,9 +118,9 @@ sequenceDiagram
     TTS-->>BE: Returns raw WAV audio bytes
     BE-->>FE: Returns ChatSessionResponse (JSON) + audio base64 + transcript text
     FE->>User: Displays text transcript & updates active form components
-    FE->>User: Plays voice response audio (HTML5 Audio player)
+    FE->>User: Plays voice response audio (HTML5 Audio player or falls back to Web Speech synthesis)
 ```
 
-* **Interruption Handling:** The frontend monitors user actions (microphone clicks, keyboard typing) and instantly stops active HTML5 audio playback to ensure smooth, natural pacing.
-* **Deterministic Fallback:** If Groq services fail or rate-limit requests, the backend falls back to local regex-based parsing rules and standard text responses, ensuring high availability.
-
+* **Interruption Handling:** The frontend monitors user actions (microphone clicks, keyboard typing) and instantly stops active HTML5 audio playback (or browser SpeechSynthesis) to ensure smooth, natural pacing.
+* **Deterministic Fallback:** If Groq services fail or rate-limit requests, the backend falls back to local regex-based parsing rules and standard text responses.
+* **SpeechSynthesis Fallback (Client-Side):** If the backend TTS generation fails (e.g. because terms need to be accepted on Groq Console, rate limits, or connectivity errors) or the generated audio file fails to load/play in the browser, the frontend automatically falls back to speaking the bot's reply using the browser's native **Web Speech API (`window.speechSynthesis`)**. This provides full resilience and robust client-side voice replies.
