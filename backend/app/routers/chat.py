@@ -16,14 +16,14 @@ from backend.app.models.chat_session import ChatSession
 from backend.app.schemas.chat import ChatSessionResponse, ChatMessagePost
 from backend.app.services.chat_service import ChatFSM, get_state_prompt, CATEGORIES, TIME_SLOTS
 from backend.app.services.ai_service import (
-    transcribe_audio, text_to_speech, parse_nlu_input, generate_voice_response, get_groq_client
+    transcribe_audio, text_to_speech, text_to_speech_hindi, parse_nlu_input, generate_voice_response, get_groq_client
 )
 
 logger = logging.getLogger("chat_router")
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
-def generate_and_save_tts(text: str, messages: list) -> tuple[Optional[str], Optional[str], Optional[str]]:
+def generate_and_save_tts(text: str, messages: list, language: str = "English") -> tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Generates TTS audio bytes, writes to a unique WAV file,
     updates the last message in `messages` with `audio_src` and `tts_error`,
@@ -33,7 +33,10 @@ def generate_and_save_tts(text: str, messages: list) -> tuple[Optional[str], Opt
     audio_src = None
     tts_error = None
     try:
-        audio_bytes = text_to_speech(text)
+        if language == "Hindi":
+            audio_bytes = text_to_speech_hindi(text)
+        else:
+            audio_bytes = text_to_speech(text)
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         STATIC_DIR = os.path.join(BASE_DIR, "static")
         AUDIO_DIR = os.path.join(STATIC_DIR, "audio")
@@ -72,13 +75,37 @@ def get_formatted_session(session: ChatSession):
     }
 
 def get_buttons_for_state(state: str, user: User, chat_data: dict, db: Session):
-    if state == "HOME_MENU":
+    is_hindi = chat_data.get("language") == "Hindi"
+
+    if state == "SELECT_LANGUAGE":
+        return [
+            {"label": "English", "value": "English"},
+            {"label": "हिंदी", "value": "Hindi"}
+        ]
+    elif state == "HOME_MENU":
+        if is_hindi:
+            return [
+                {"label": "🔧 उत्पाद सहायता / मरम्मत", "value": "A"},
+                {"label": "📦 वर्तमान ऑर्डर ट्रैक करें", "value": "B"},
+                {"label": "❓ कुछ और", "value": "C"}
+            ]
         return [
             {"label": "🔧 Product Help / Repair", "value": "A"},
             {"label": "📦 Track Current Order", "value": "B"},
             {"label": "❓ Something Else", "value": "C"}
         ]
     elif state == "PRODUCT_CATEGORY":
+        if is_hindi:
+            cat_trans = {
+                "Refrigerator": "रेफ्रिजरेटर",
+                "Washing Machine": "वाशिंग मशीन",
+                "Microwave": "माइक्रोवेव",
+                "Dishwasher": "डिशवॉशर",
+                "AC": "एसी",
+                "TV": "टीवी",
+                "Others": "अन्य"
+            }
+            return [{"label": cat_trans.get(cat, cat), "value": cat} for cat in CATEGORIES]
         return [{"label": cat, "value": cat} for cat in CATEGORIES]
     elif state == "PRODUCT_MODEL":
         cat = chat_data.get("category")
@@ -102,11 +129,21 @@ def get_buttons_for_state(state: str, user: User, chat_data: dict, db: Session):
             })
         return buttons
     elif state == "PRODUCT_WARRANTY":
+        if is_hindi:
+            return [
+                {"label": "🛡️ वारंटी में", "value": "In Warranty"},
+                {"label": "❌ वारंटी से बाहर", "value": "Out of Warranty"}
+            ]
         return [
             {"label": "🛡️ In Warranty", "value": "In Warranty"},
             {"label": "❌ Out of Warranty", "value": "Out of Warranty"}
         ]
     elif state == "CONFIRM_DETAILS_BEFORE_BOOKING":
+        if is_hindi:
+            return [
+                {"label": "📅 हाँ, सेवा नियुक्ति बुक करें", "value": "Yes"},
+                {"label": "❌ नहीं, मुख्य मेनू पर जाएँ", "value": "No"}
+            ]
         return [
             {"label": "📅 Yes, Book Service Appointment", "value": "Yes"},
             {"label": "❌ No, Back to Main Menu", "value": "No"}
@@ -115,23 +152,49 @@ def get_buttons_for_state(state: str, user: User, chat_data: dict, db: Session):
         status = chat_data.get("order_status")
         buttons = []
         if status in ["Delayed", "Installation Pending", "Shipped"]:
-            buttons = [
-                {"label": "⚠️ Raise Complaint", "value": "Raise a complaint"},
-                {"label": "📞 Request Callback", "value": "Request callback"},
-                {"label": "🚀 Escalate Issue", "value": "Escalate to support"}
-            ]
+            if is_hindi:
+                buttons = [
+                    {"label": "⚠️ शिकायत दर्ज करें", "value": "Raise a complaint"},
+                    {"label": "📞 कॉलबैक का अनुरोध करें", "value": "Request callback"},
+                    {"label": "🚀 मुद्दा आगे बढ़ाएं", "value": "Escalate to support"}
+                ]
+            else:
+                buttons = [
+                    {"label": "⚠️ Raise Complaint", "value": "Raise a complaint"},
+                    {"label": "📞 Request Callback", "value": "Request callback"},
+                    {"label": "🚀 Escalate Issue", "value": "Escalate to support"}
+                ]
         elif status == "Delivered":
-            buttons = [
-                {"label": "🛠️ Schedule Installation", "value": "Schedule installation"},
-                {"label": "⚠️ Raise Complaint", "value": "Raise a complaint"}
-            ]
+            if is_hindi:
+                buttons = [
+                    {"label": "🛠️ स्थापना निर्धारित करें", "value": "Schedule installation"},
+                    {"label": "⚠️ शिकायत दर्ज करें", "value": "Raise a complaint"}
+                ]
+            else:
+                buttons = [
+                    {"label": "🛠️ Schedule Installation", "value": "Schedule installation"},
+                    {"label": "⚠️ Raise Complaint", "value": "Raise a complaint"}
+                ]
         return buttons
     elif state == "OTHER_HELP_MENU":
-        return [{"label": opt, "value": opt} for opt in [
+        opts = [
             "Warranty / AMC", "Product registration", "Installation request",
             "Bill / invoice help", "Cancellation / return", "Feedback",
             "Complaint escalation", "General FAQ"
-        ]]
+        ]
+        if is_hindi:
+            opt_trans = {
+                "Warranty / AMC": "वारंटी / एएमसी",
+                "Product registration": "उत्पाद पंजीकरण",
+                "Installation request": "स्थापना का अनुरोध",
+                "Bill / invoice help": "बिल / चालान सहायता",
+                "Cancellation / return": "रद्दीकरण / वापसी",
+                "Feedback": "प्रतिक्रिया (Feedback)",
+                "Complaint escalation": "शिकायत वृद्धि",
+                "General FAQ": "अक्सर पूछे जाने वाले प्रश्न"
+            }
+            return [{"label": opt_trans.get(opt, opt), "value": opt} for opt in opts]
+        return [{"label": opt, "value": opt} for opt in opts]
     return None
 
 def find_matching_button(state: str, text: str, user: User, chat_data: dict, db: Session):
@@ -235,6 +298,7 @@ def process_hybrid_chat_step(
         
     fsm = ChatFSM(db, session)
     current_state = session.current_state
+    language = fsm.chat_data.get("language", "English")
     
     display_str = user_text or str(input_value)
     fsm.add_message("user", display_str)
@@ -246,7 +310,9 @@ def process_hybrid_chat_step(
     else:
         # Check if the text matches a button exactly
         fsm_input = find_matching_button(current_state, display_str, user, fsm.chat_data, db)
-        
+        if current_state == "PRODUCT_INSTALL_DATE" and (input_value == "" or input_value is None or "skip" in str(input_value).lower()):
+            fsm_input = ""
+            
     clarification_message = None
     
     # 2. Run NLU mapping if FSM input is not yet resolved
@@ -259,7 +325,10 @@ def process_hybrid_chat_step(
             fsm_input = deterministic_fallback_parse(current_state, display_str)
             if fsm_input is None:
                 # Ask a standard fallback clarification query
-                clarification_message = f"I'm sorry, I couldn't quite get that. Could you please specify your selection or details?"
+                if language == "Hindi":
+                    clarification_message = "मुझे खेद है, मैं उसे समझ नहीं पाया। क्या आप कृपया अपना चयन या विवरण स्पष्ट कर सकते हैं?"
+                else:
+                    clarification_message = "I'm sorry, I couldn't quite get that. Could you please specify your selection or details?"
         else:
             fsm_input = nlu_result.get("fsm_input")
             clarification_message = nlu_result.get("clarification")
@@ -288,7 +357,13 @@ def process_hybrid_chat_step(
             client = get_groq_client()
             if client:
                 try:
-                    sys_prompt = f"The user provided an input that failed FSM validation. State: {current_state}. Error detail: {validation_error_detail}. Generate a warm, polite spoken explanation explaining why it was invalid and what the format should be. Keep it short and spoken-friendly. No markdown."
+                    sys_prompt = (
+                        f"The user provided an input that failed FSM validation. State: {current_state}. "
+                        f"Error detail: {validation_error_detail}. The user's preferred language is {language}. "
+                        f"If the language is Hindi, you MUST generate the entire spoken explanation in warm, conversational, natural Hindi (using Devanagari script). "
+                        f"Otherwise, generate a warm, polite spoken explanation explaining why it was invalid and what the format should be in English. "
+                        f"Keep it short and spoken-friendly. No markdown."
+                    )
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[
@@ -300,9 +375,15 @@ def process_hybrid_chat_step(
                     )
                     clarification_message = response.choices[0].message.content.strip()
                 except Exception:
-                    clarification_message = f"That value is invalid. {validation_error_detail}"
+                    if language == "Hindi":
+                        clarification_message = f"वह मान अमान्य है। {validation_error_detail}"
+                    else:
+                        clarification_message = f"That value is invalid. {validation_error_detail}"
             else:
-                clarification_message = f"That value is invalid. {validation_error_detail}"
+                if language == "Hindi":
+                    clarification_message = f"वह मान अमान्य है। {validation_error_detail}"
+                else:
+                    clarification_message = f"That value is invalid. {validation_error_detail}"
                 
             # Stay in the same state, re-add buttons and explanation
             buttons = get_buttons_for_state(current_state, user, fsm.chat_data, db)
@@ -310,14 +391,18 @@ def process_hybrid_chat_step(
             assistant_reply_text = clarification_message
     else:
         if not clarification_message:
-            clarification_message = "Could you please clarify your request?"
+            if language == "Hindi":
+                clarification_message = "क्या आप कृपया अपने अनुरोध को स्पष्ट कर सकते हैं?"
+            else:
+                clarification_message = "Could you please clarify your request?"
             
         buttons = get_buttons_for_state(current_state, user, fsm.chat_data, db)
         fsm.add_message("assistant", clarification_message, buttons)
         assistant_reply_text = clarification_message
         
     # 4. Generate Speech Audio
-    audio_base64, audio_src, tts_error = generate_and_save_tts(assistant_reply_text, fsm.messages)
+    current_language = fsm.chat_data.get("language", "English")
+    audio_base64, audio_src, tts_error = generate_and_save_tts(assistant_reply_text, fsm.messages, current_language)
     fsm.save()
     
     formatted = get_formatted_session(session)
@@ -335,7 +420,7 @@ def create_session(user_id: str = Query(...), db: Session = Depends(get_db)):
     session = ChatSession(
         session_id=session_id,
         user_id=user_id,
-        current_state="HOME_MENU",
+        current_state="SELECT_LANGUAGE",
         chat_data="{}",
         state_history="[]",
         messages="[]",
@@ -346,11 +431,11 @@ def create_session(user_id: str = Query(...), db: Session = Depends(get_db)):
     db.refresh(session)
     
     fsm = ChatFSM(db, session)
-    prompt = get_state_prompt("HOME_MENU", {})
-    buttons = get_buttons_for_state("HOME_MENU", user, {}, db)
+    prompt = get_state_prompt("SELECT_LANGUAGE", {})
+    buttons = get_buttons_for_state("SELECT_LANGUAGE", user, {}, db)
     
     fsm.add_message("assistant", prompt, buttons)
-    audio_base64, audio_src, tts_error = generate_and_save_tts(prompt, fsm.messages)
+    audio_base64, audio_src, tts_error = generate_and_save_tts(prompt, fsm.messages, "English")
     fsm.save()
     
     formatted = get_formatted_session(session)
@@ -440,7 +525,8 @@ def step_back(session_id: str, db: Session = Depends(get_db)):
         buttons = get_buttons_for_state(current_state, user, fsm.chat_data, db)
         
         fsm.add_message("assistant", prompt, buttons)
-        audio_base64, audio_src, tts_error = generate_and_save_tts(prompt, fsm.messages)
+        language = fsm.chat_data.get("language", "English")
+        audio_base64, audio_src, tts_error = generate_and_save_tts(prompt, fsm.messages, language)
         fsm.save()
     else:
         raise HTTPException(status_code=400, detail="Cannot go back further.")
@@ -459,17 +545,17 @@ def restart_session(session_id: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
         
-    session.current_state = "HOME_MENU"
+    session.current_state = "SELECT_LANGUAGE"
     session.chat_data = "{}"
     session.state_history = "[]"
     session.messages = "[]"
     
     fsm = ChatFSM(db, session)
-    prompt = get_state_prompt("HOME_MENU", {})
-    buttons = get_buttons_for_state("HOME_MENU", user, {}, db)
+    prompt = get_state_prompt("SELECT_LANGUAGE", {})
+    buttons = get_buttons_for_state("SELECT_LANGUAGE", user, {}, db)
     
     fsm.add_message("assistant", prompt, buttons)
-    audio_base64, audio_src, tts_error = generate_and_save_tts(prompt, fsm.messages)
+    audio_base64, audio_src, tts_error = generate_and_save_tts(prompt, fsm.messages, "English")
     fsm.save()
     
     formatted = get_formatted_session(session)

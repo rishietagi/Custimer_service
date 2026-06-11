@@ -20,6 +20,8 @@ from backend.app.models.product import Product
 from backend.app.models.order import Order
 from backend.app.models.appointment import Appointment
 from backend.app.models.support_case import SupportCase
+from backend.app.models.call_session import CallSession
+
 
 from backend.app.api.api_v1 import api_router
 

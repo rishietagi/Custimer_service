@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X, LogOut, MessageSquare, Calendar, Package, User, Sparkles } from 'lucide-react';
+import { Menu, X, LogOut, MessageSquare, Calendar, Package, User, Sparkles, Phone } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: string;
@@ -13,6 +13,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, user, o
 
   const menuItems = [
     { id: 'chat', label: 'Assistant Chatbot', icon: MessageSquare },
+    { id: 'call_center', label: 'Call Center Agent', icon: Phone },
     { id: 'appointments', label: 'My Appointments', icon: Calendar },
     { id: 'orders', label: 'Track Orders', icon: Package },
     { id: 'profile', label: 'My Profile & Tickets', icon: User },
@@ -21,6 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, user, o
   const getPageTitle = () => {
     switch (activeTab) {
       case 'chat': return 'SmartCare Diagnostic Assistant';
+      case 'call_center': return 'Voice Call Center';
       case 'appointments': return 'Service Appointments';
       case 'orders': return 'Order Tracking & History';
       case 'profile': return 'My Profile & Support Tickets';

@@ -16,7 +16,7 @@ def init_session_state():
     
     # Chatbot state machine states
     if "chat_state" not in st.session_state:
-        st.session_state.chat_state = "HOME_MENU"
+        st.session_state.chat_state = "SELECT_LANGUAGE"
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     if "chat_data" not in st.session_state:
@@ -42,7 +42,7 @@ def logout_user():
 
 def reset_chat_flow():
     """Resets the chat interface and transitions back to the main menu."""
-    st.session_state.chat_state = "HOME_MENU"
+    st.session_state.chat_state = "SELECT_LANGUAGE"
     st.session_state.chat_history = []
     st.session_state.chat_data = {}
     st.session_state.state_history = []

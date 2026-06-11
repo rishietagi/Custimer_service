@@ -130,4 +130,36 @@ export const api = {
       return res.data;
     },
   },
+  calls: {
+    start: async (userId: string) => {
+      const res = await client.post('/call-center/calls', null, {
+        params: { user_id: userId },
+      });
+      return res.data;
+    },
+    sendVoice: async (callId: string, audioBlob: Blob) => {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'voice_input.webm');
+      const res = await client.post(`/call-center/calls/${callId}/voice`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return res.data;
+    },
+    end: async (callId: string) => {
+      const res = await client.post(`/call-center/calls/${callId}/end`);
+      return res.data;
+    },
+    getHistory: async (userId: string) => {
+      const res = await client.get('/call-center/calls', {
+        params: { user_id: userId },
+      });
+      return res.data;
+    },
+    getCall: async (callId: string) => {
+      const res = await client.get(`/call-center/calls/${callId}`);
+      return res.data;
+    },
+  },
 };

@@ -53,6 +53,7 @@ Styled in dark-charcoal (#1e1e1e) and SmartCare signature red (#a50034) with cle
 * **Login:** Sign in and registration with credentials advice panel.
 * **Dashboard:** Home screen displaying scheduled visits, shipped orders, and ticket logs.
 * **ChatAssistant:** guided diagnostic conversational flow with voice controls, progress, status indicator, and undo keys.
+* **CallCenter:** Voice-first call center agent simulation page with duration timer, live transcription, continuous listening, and call summary details.
 * **Appointments:** Service visitation card list with cancel/reschedule forms.
 * **Orders:** Purchase logistics timelines with complaint forms.
 * **Profile:** Account options, registered devices lists, and active ticket timelines.

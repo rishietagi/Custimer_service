@@ -186,3 +186,33 @@ The chat session response schema includes optional voice and transcription field
 ### Restart Chat Flow
 * **Endpoint:** `POST /api/v1/chat/session/{session_id}/restart`
 * **Response:** `ChatSessionResponse`
+
+---
+
+## 7. Voice Call Center Service (`/call-center`)
+
+### Start Call Session
+* **Endpoint:** `POST /api/v1/call-center/calls`
+* **Query Parameters:** `user_id`
+* **Response:** `CallSessionResponse` (initializes call, FSM, and includes greeting audio base64)
+
+### Post Voice Call Input
+* **Endpoint:** `POST /api/v1/call-center/calls/{call_id}/voice`
+* **Request Format:** `multipart/form-data`
+* **Form Fields:**
+  * `file`: `UploadFile` (audio recording blob, e.g. webm/wav)
+* **Response:** `CallSessionResponse` (returns updated FSM state, messages transcript history, latest assistant message, and voice audio base64)
+
+### End Call Session
+* **Endpoint:** `POST /api/v1/call-center/calls/{call_id}/end`
+* **Response:** `CallSessionResponse` (terminates call, generates and returns final structured LLM call summary)
+
+### Retrieve User Call History
+* **Endpoint:** `GET /api/v1/call-center/calls`
+* **Query Parameters:** `user_id`
+* **Response:** `List[CallSessionResponse]` (historical logs of all user voice call sessions)
+
+### Get Call Details
+* **Endpoint:** `GET /api/v1/call-center/calls/{call_id}`
+* **Response:** `CallSessionResponse`
+

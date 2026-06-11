@@ -20,3 +20,5 @@ class User(Base):
     appointments = relationship("Appointment", back_populates="owner", cascade="all, delete-orphan")
     support_cases = relationship("SupportCase", back_populates="owner", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
+    call_sessions = relationship("CallSession", back_populates="user", cascade="all, delete-orphan")
+

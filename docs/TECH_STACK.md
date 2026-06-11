@@ -135,3 +135,17 @@ This document details the technologies selected for the SmartCare customer porta
 * **Alternatives considered:** Backend fallback like gTTS or pyttsx3.
 * **Pros:** Instant playback, offline execution capability, zero network latency, zero setup required.
 * **Cons:** Voice synthesis quality is dependent on the host operating system and browser's built-in voices.
+
+## 18. Hugging Face Inference API & Vibevoice (Hindi TTS)
+* **What it is:** Remote API hosting `tarun7r/vibevoice-hindi-1.5B` text-to-speech model.
+* **Why it was selected:** Generates high-fidelity, natural-sounding Hindi voice responses.
+* **Alternatives considered:** Google Translate TTS Hindi, PyTTSx3.
+* **Pros:** Tailored pronunciation of Hindi characters, open model representation.
+* **Cons:** Relies on external API response latency.
+
+## 19. Web Speech API (SpeechRecognition)
+* **What it is:** A browser-native API for real-time client-side speech-to-text recognition.
+* **Why it was selected:** Powering the live transcription preview and automatic silence detection (auto-submit) for the continuous listening call flow.
+* **Pros:** Free, zero network lag for interim transcription results.
+* **Cons:** Browser-dependent support (requires Chrome/Edge/Safari).
+

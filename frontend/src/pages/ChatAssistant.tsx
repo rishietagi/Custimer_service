@@ -9,6 +9,7 @@ interface ChatAssistantProps {
 }
 
 const STATES_META: Record<string, { label: string; progress: number }> = {
+  "SELECT_LANGUAGE": { label: "Language Selection", progress: 2 },
   "HOME_MENU": { label: "Home Menu", progress: 5 },
   "PRODUCT_CATEGORY": { label: "Product Category", progress: 15 },
   "PRODUCT_MODEL": { label: "Product Model", progress: 25 },
@@ -17,6 +18,7 @@ const STATES_META: Record<string, { label: string; progress: number }> = {
   "PRODUCT_SERIAL": { label: "Serial Number", progress: 55 },
   "PRODUCT_INSTALL_DATE": { label: "Installation Date", progress: 65 },
   "ISSUE_COLLECTION": { label: "Issue Details", progress: 75 },
+  "ISSUE_EXPLANATION": { label: "Issue Explanation", progress: 80 },
   "CONFIRM_DETAILS_BEFORE_BOOKING": { label: "Review Details", progress: 85 },
   "SERVICE_ADDRESS": { label: "Service Address", progress: 90 },
   "SERVICE_SCHEDULE": { label: "Appointment Date & Time", progress: 95 },
@@ -77,6 +79,20 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
   const [currentPlayingAudioSrc, setCurrentPlayingAudioSrc] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [ttsWarning, setTtsWarning] = useState('');
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  // Load synthesis voices dynamically
+  useEffect(() => {
+    const loadVoices = () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        setVoices(window.speechSynthesis.getVoices());
+      }
+    };
+    loadVoices();
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
 
   const checkLastMessageForTtsError = (sess: any) => {
     if (sess && sess.messages && sess.messages.length > 0) {
@@ -115,12 +131,21 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
 
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         const utterance = new SpeechSynthesisUtterance(cleanText);
-        const voices = window.speechSynthesis.getVoices();
-        const englishVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || 
-                             voices.find(v => v.lang.startsWith('en')) || 
-                             voices[0];
-        if (englishVoice) {
-          utterance.voice = englishVoice;
+        const availableVoices = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
+        const isHindi = session?.chat_data?.language === 'Hindi';
+        let voice;
+        if (isHindi) {
+          voice = availableVoices.find(v => v.lang.startsWith('hi') && v.name.includes('Google')) ||
+                  availableVoices.find(v => v.lang.startsWith('hi')) ||
+                  availableVoices[0];
+        } else {
+          voice = availableVoices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || 
+                  availableVoices.find(v => v.lang.startsWith('en')) || 
+                  availableVoices[0];
+        }
+        if (voice) {
+          utterance.voice = voice;
+          utterance.lang = voice.lang;
         }
 
         utterance.onstart = () => {
@@ -544,16 +569,23 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
           </form>
         );
 
+      case 'SELECT_LANGUAGE':
+        return null;
+
       case 'ISSUE_COLLECTION':
         const cat = session?.chat_data?.category || "Others";
         const issueOptions = CATEGORY_ISSUES[cat] || ["Other"];
+        const isHindi = session?.chat_data?.language === 'Hindi';
         return (
           <form onSubmit={(e) => {
             e.preventDefault();
-            handleAction({ issue_option: selectInput || issueOptions[0], issue_description: textareaInput }, `Issue: ${selectInput || issueOptions[0]} (${textareaInput || 'None'})`);
+            const selected = selectInput || issueOptions[0];
+            handleAction(selected, isHindi ? `चयनित समस्या: ${selected}` : `Selected Issue: ${selected}`);
           }} className="w-full space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Common Symptoms</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                {isHindi ? "कृपया समस्या का चयन करें" : "Select the Issue Symptom"}
+              </label>
               <select
                 value={selectInput}
                 onChange={(e) => setSelectInput(e.target.value)}
@@ -564,17 +596,34 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ user, onRefreshDas
                 ))}
               </select>
             </div>
+            <button type="submit" className="btn-premium w-full">
+              {isHindi ? "जारी रखें" : "Continue"}
+            </button>
+          </form>
+        );
+
+      case 'ISSUE_EXPLANATION':
+        const issueOpt = session?.chat_data?.issue_option || "Issue";
+        const isHindiExplanation = session?.chat_data?.language === 'Hindi';
+        return (
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            handleAction(textareaInput, isHindiExplanation ? `विवरण: ${textareaInput}` : `Explanation: ${textareaInput}`);
+          }} className="w-full space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Symptom Description (Required if &quot;Other&quot;)</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                {isHindiExplanation ? `कृपया '${issueOpt}' समस्या का विस्तार से वर्णन करें` : `Please describe the '${issueOpt}' issue in detail`}
+              </label>
               <textarea
-                placeholder="Describe details, error codes, noise symptoms..."
+                required
+                placeholder={isHindiExplanation ? "लक्षण, कब शुरू हुआ आदि दर्ज करें..." : "Describe details, specific symptoms, when it started..."}
                 value={textareaInput}
                 onChange={(e) => setTextareaInput(e.target.value)}
                 className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red h-20"
               />
             </div>
             <button type="submit" className="btn-premium w-full">
-              Submit Symptoms
+              {isHindiExplanation ? "विवरण सबमिट करें" : "Submit Details"}
             </button>
           </form>
         );

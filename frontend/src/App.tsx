@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './pages/Dashboard';
 import { ChatAssistant } from './pages/ChatAssistant';
+import { CallCenter } from './pages/CallCenter';
 import { Appointments } from './pages/Appointments';
 import { Orders } from './pages/Orders';
 import { Profile } from './pages/Profile';
@@ -105,6 +106,8 @@ export const App: React.FC = () => {
         return <Dashboard data={dashboardData} setActiveTab={setActiveTab} />;
       case 'chat':
         return <ChatAssistant user={user} onRefreshDashboard={handleRefresh} />;
+      case 'call_center':
+        return <CallCenter user={user} onRefreshDashboard={handleRefresh} />;
       case 'appointments':
         return <Appointments data={dashboardData} onRefresh={handleRefresh} setActiveTab={setActiveTab} />;
       case 'orders':

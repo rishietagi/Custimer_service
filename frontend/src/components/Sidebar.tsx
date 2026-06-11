@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Calendar, Package, User, LogOut, Sparkles } from 'lucide-react';
+import { MessageSquare, Calendar, Package, User, LogOut, Sparkles, Phone } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -11,6 +11,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, user, onLogout }) => {
   const menuItems = [
     { id: 'chat', label: 'Assistant Chatbot', icon: MessageSquare },
+    { id: 'call_center', label: 'Call Center Agent', icon: Phone },
     { id: 'appointments', label: 'My Appointments', icon: Calendar },
     { id: 'orders', label: 'Track Orders', icon: Package },
     { id: 'profile', label: 'My Profile & Tickets', icon: User },

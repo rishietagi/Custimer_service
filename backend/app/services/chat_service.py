@@ -17,6 +17,7 @@ from backend.app.core.validators import (
 )
 
 STATES = {
+    "SELECT_LANGUAGE": {"label": "Language Selection", "progress": 2},
     "HOME_MENU": {"label": "Home Menu", "progress": 5},
     # Path A: Product Help Flow
     "PRODUCT_CATEGORY": {"label": "Product Category", "progress": 15},
@@ -26,6 +27,7 @@ STATES = {
     "PRODUCT_SERIAL": {"label": "Serial Number", "progress": 55},
     "PRODUCT_INSTALL_DATE": {"label": "Installation Date", "progress": 65},
     "ISSUE_COLLECTION": {"label": "Issue Details", "progress": 75},
+    "ISSUE_EXPLANATION": {"label": "Issue Explanation", "progress": 80},
     "CONFIRM_DETAILS_BEFORE_BOOKING": {"label": "Review Details", "progress": 85},
     "SERVICE_ADDRESS": {"label": "Service Address", "progress": 90},
     "SERVICE_SCHEDULE": {"label": "Appointment Date & Time", "progress": 95},
@@ -69,45 +71,102 @@ TIME_SLOTS = [
 
 def get_state_prompt(state: str, chat_data: dict) -> str:
     """Returns the bot's greeting/prompt text for the current state."""
-    if state == "HOME_MENU":
+    is_hindi = chat_data.get("language") == "Hindi"
+    
+    if state == "SELECT_LANGUAGE":
+        return "Please select your preferred language / कृपया अपनी पसंदीदा भाषा चुनें:"
+    
+    elif state == "HOME_MENU":
+        if is_hindi:
+            return "नमस्ते! आज मैं आपकी क्या सहायता कर सकता हूँ? शुरू करने के लिए कृपया नीचे दिए गए विकल्पों में से एक चुनें:"
         return "Hello! How may I help you today? Please choose one of the options below to get started:"
     
     # Path A: Product Help Flow
     elif state == "PRODUCT_CATEGORY":
+        if is_hindi:
+            return "आपको किस उत्पाद श्रेणी (product category) में सहायता की आवश्यकता है?"
         return "Which product category do you need help with?"
     elif state == "PRODUCT_MODEL":
+        if is_hindi:
+            return "कृपया अपने उत्पाद का मॉडल नंबर दर्ज करें (जैसे LFXS26973S):"
         return "Please enter your product's model number (e.g. LFXS26973S):"
     elif state == "PRODUCT_PURCHASE_DATE":
+        if is_hindi:
+            return "आपने उत्पाद कब खरीदा था? (यदि आपको सटीक तारीख नहीं पता है, तो आप अनुमानित तारीख चुन सकते हैं):"
         return "When did you purchase the product? (If you don't know the exact date, you can select an approximate date):"
     elif state == "PRODUCT_WARRANTY":
+        if is_hindi:
+            return "आपके उत्पाद की वारंटी स्थिति (warranty status) क्या है? (यदि अनिश्चित हैं, तो हम इसे बाद में देख सकते हैं):"
         return "What is the warranty status of your product? (If unsure, we can check it later):"
     elif state == "PRODUCT_SERIAL":
+        if is_hindi:
+            return "कृपया उत्पाद का सीरियल नंबर दर्ज करें (आमतौर पर उपकरण के अंदर या पीछे एक स्टिकर पर पाया जाता है):"
         return "Please enter the product serial number (often found on a sticker inside or behind the appliance):"
     elif state == "PRODUCT_INSTALL_DATE":
+        if is_hindi:
+            return "उत्पाद कब स्थापित (install) किया गया था? (वैकल्पिक, यदि खरीद की तारीख के समान है तो आप इसे खाली छोड़ सकते हैं):"
         return "When was the product installed? (Optional, you can leave it blank if same as purchase date):"
     elif state == "ISSUE_COLLECTION":
         category = chat_data.get("category", "Others")
+        cat_trans = {
+            "Refrigerator": "रेफ्रिजरेटर",
+            "Washing Machine": "वाशिंग मशीन",
+            "Microwave": "माइक्रोवेव",
+            "Dishwasher": "डिशवॉशर",
+            "AC": "एसी",
+            "TV": "टीवी",
+            "Others": "अन्य"
+        }
+        category_display = cat_trans.get(category, category) if is_hindi else category
+        if is_hindi:
+            return f"आपको अपने {category_display} के साथ क्या समस्या आ रही है?"
         return f"What issue are you facing with your {category}?"
+    elif state == "ISSUE_EXPLANATION":
+        issue_option = chat_data.get("issue_option", "issue")
+        if is_hindi:
+            return f"आपने '{issue_option}' चुना है। कृपया इस समस्या के बारे में विस्तार से बताएं (जैसे कि यह कब शुरू हुई, इसके क्या लक्षण हैं):"
+        return f"You selected '{issue_option}'. Please describe/explain this issue in detail so our technician is fully prepared (e.g. specific symptoms, when it started):"
     elif state == "CONFIRM_DETAILS_BEFORE_BOOKING":
         category = chat_data.get("category", "Product")
         model = chat_data.get("model_number", "")
-        issue = chat_data.get("issue_description", "")
+        issue_opt = chat_data.get("issue_option", "")
+        issue_desc = chat_data.get("issue_description", "")
         serial = chat_data.get("serial_number", "")
         warranty = chat_data.get("warranty_status", "")
         
-        summary = (
-            f"Here is a summary of the details you provided:\n\n"
-            f"**Product Category:** {category}\n"
-            f"**Model Number:** {model}\n"
-            f"**Serial Number:** {serial}\n"
-            f"**Warranty Status:** {warranty}\n"
-            f"**Issue Description:** {issue}\n\n"
-            "Would you like to proceed and book a service appointment for a technician to visit your home?"
-        )
+        if is_hindi:
+            cat_trans = {"Refrigerator": "रेफ्रिजरेटर", "Washing Machine": "वाशिंग मशीन", "Microwave": "माइक्रोवेव", "Dishwasher": "डिशवॉशर", "AC": "एसी", "TV": "टीवी", "Others": "अन्य"}
+            category = cat_trans.get(category, category)
+            warranty = "वारंटी में (In Warranty)" if warranty == "In Warranty" else "वारंटी से बाहर (Out of Warranty)"
+            summary = (
+                f"यहाँ आपके द्वारा दिए गए विवरणों का सारांश है:\n\n"
+                f"**उत्पाद श्रेणी:** {category}\n"
+                f"**मॉडल नंबर:** {model}\n"
+                f"**सीरियल नंबर:** {serial}\n"
+                f"**वारंटी स्थिति:** {warranty}\n"
+                f"**समस्या:** {issue_opt}\n"
+                f"**विवरण:** {issue_desc}\n\n"
+                "क्या आप आगे बढ़ना चाहते हैं और तकनीशियन के घर आने के लिए सेवा नियुक्ति (service appointment) बुक करना चाहते हैं?"
+            )
+        else:
+            summary = (
+                f"Here is a summary of the details you provided:\n\n"
+                f"**Product Category:** {category}\n"
+                f"**Model Number:** {model}\n"
+                f"**Serial Number:** {serial}\n"
+                f"**Warranty Status:** {warranty}\n"
+                f"**Selected Issue:** {issue_opt}\n"
+                f"**Issue Explanation:** {issue_desc}\n\n"
+                "Would you like to proceed and book a service appointment for a technician to visit your home?"
+            )
         return summary
     elif state == "SERVICE_ADDRESS":
+        if is_hindi:
+            return "कृपया अपने सेवा बुकिंग विवरण प्रदान करें ताकि हम एक स्थानीय तकनीशियन नियुक्त कर सकें:"
         return "Please provide your service booking details so we can assign a local technician:"
     elif state == "SERVICE_SCHEDULE":
+        if is_hindi:
+            return "आप तकनीशियन से कब मिलने को प्राथमिकता देंगे? कृपया एक तारीख और समय स्लॉट चुनें:"
         return "When would you prefer the technician to visit? Please select a date and time slot:"
     elif state == "BOOKING_CONFIRMATION":
         apt_id = chat_data.get("appointment_id", "N/A")
@@ -117,61 +176,112 @@ def get_state_prompt(state: str, chat_data: dict) -> str:
         model = chat_data.get("model_number", "N/A")
         category = chat_data.get("category", "Product")
         
-        msg = (
-            f"### 🎉 Booking Confirmed!\n\n"
-            f"**Appointment ID:** {apt_id}\n"
-            f"**Booking Status:** Scheduled\n"
-            f"**Product:** {category} (Model: {model})\n"
-            f"**Scheduled Date:** {date_str}\n"
-            f"**Time Slot:** {slot}\n"
-            f"**Assigned Technician:** {tech}\n\n"
-            f"Our technician will call you 30 minutes before arrival. If you need to make changes, you can reschedule or cancel this appointment anytime in the 'My Appointments' tab.\n\n"
-            f"How else can I assist you today?"
-        )
+        if is_hindi:
+            cat_trans = {"Refrigerator": "रेफ्रिजरेटर", "Washing Machine": "वाशिंग मशीन", "Microwave": "माइक्रोवेव", "Dishwasher": "डिशवॉशर", "AC": "एसी", "TV": "टीवी", "Others": "अन्य"}
+            category = cat_trans.get(category, category)
+            msg = (
+                f"### 🎉 बुकिंग की पुष्टि हो गई है!\n\n"
+                f"**नियुक्ति (Appointment) आईडी:** {apt_id}\n"
+                f"**बुकिंग स्थिति:** निर्धारित (Scheduled)\n"
+                f"**उत्पाद:** {category} (मॉडल: {model})\n"
+                f"**निर्धारित तिथि:** {date_str}\n"
+                f"**समय स्लॉट:** {slot}\n"
+                f"**नियुक्त तकनीशियन:** {tech}\n\n"
+                f"हमारे तकनीशियन आगमन से 30 मिनट पहले आपको कॉल करेंगे। यदि आपको कोई बदलाव करना है, तो आप 'My Appointments' टैब में जाकर कभी भी इसे बदल या रद्द कर सकते हैं।\n\n"
+                f"आज मैं आपकी और क्या सहायता कर सकता हूँ?"
+            )
+        else:
+            msg = (
+                f"### 🎉 Booking Confirmed!\n\n"
+                f"**Appointment ID:** {apt_id}\n"
+                f"**Booking Status:** Scheduled\n"
+                f"**Product:** {category} (Model: {model})\n"
+                f"**Scheduled Date:** {date_str}\n"
+                f"**Time Slot:** {slot}\n"
+                f"**Assigned Technician:** {tech}\n\n"
+                f"Our technician will call you 30 minutes before arrival. If you need to make changes, you can reschedule or cancel this appointment anytime in the 'My Appointments' tab.\n\n"
+                f"How else can I assist you today?"
+            )
         return msg
 
     # Path B: Order Status Flow
     elif state == "ORDER_LOOKUP":
+        if is_hindi:
+            return "अपना ऑर्डर ट्रैक करने के लिए, कृपया अपना ऑर्डर आईडी और उस ऑर्डर के साथ पंजीकृत फोन नंबर या ईमेल दर्ज करें:"
         return "To track your order, please enter your Order ID and the phone number or email registered with that order:"
     elif state == "ORDER_STATUS_DISPLAY":
         order_id = chat_data.get("order_id", "N/A")
         prod = chat_data.get("product_name", "N/A")
         status = chat_data.get("order_status", "N/A")
         
-        msg = (
-            f"### 📦 Order Status: **{status}**\n"
-            f"**Order ID:** {order_id}\n"
-            f"**Product:** {prod}\n\n"
-            f"Here is your order delivery status timeline. If your order needs attention, you can use the action buttons below."
-        )
+        if is_hindi:
+            msg = (
+                f"### 📦 ऑर्डर की स्थिति: **{status}**\n"
+                f"**ऑर्डर आईडी:** {order_id}\n"
+                f"**उत्पाद:** {prod}\n\n"
+                f"यहाँ आपके ऑर्डर वितरण स्थिति की समयरेखा है। यदि आपके ऑर्डर में कोई समस्या है, तो आप नीचे दिए गए एक्शन बटनों का उपयोग कर सकते हैं।"
+            )
+        else:
+            msg = (
+                f"### 📦 Order Status: **{status}**\n"
+                f"**Order ID:** {order_id}\n"
+                f"**Product:** {prod}\n\n"
+                f"Here is your order delivery status timeline. If your order needs attention, you can use the action buttons below."
+            )
         return msg
     elif state == "ORDER_COMPLAINT_FORM":
+        if is_hindi:
+            return "कृपया नीचे अपने ऑर्डर के संबंध में अपनी शिकायत या पूछताछ का वर्णन करें:"
         return "Please describe your complaint or inquiry regarding your order below:"
     elif state == "ORDER_CALLBACK_CONFIRM":
+        if is_hindi:
+            return "धन्यवाद। एक कॉलबैक अनुरोध बनाया गया है। एक सहायता अधिकारी 2 से 4 व्यावसायिक घंटों के भीतर आपके पंजीकृत फोन नंबर पर आपसे संपर्क करेगा।"
         return "Thank you. A callback request has been created. A support executive will contact you at your registered phone number within 2 to 4 business hours."
     elif state == "ORDER_ESCALATE_CONFIRM":
+        if is_hindi:
+            return "आपके ऑर्डर की समस्या को वरिष्ठ सहायता प्रबंधक के पास भेज दिया गया है। टिकट संदर्भ आईडी: " + chat_data.get("ticket_id", "N/A") + "। हम सक्रिय रूप से इसकी समीक्षा कर रहे हैं और ईमेल के माध्यम से आपसे संपर्क करेंगे।"
         return "Your order issue has been escalated to senior support manager. Ticket reference ID: " + chat_data.get("ticket_id", "N/A") + ". We are actively reviewing this and will contact you via email."
 
     # Path C: Other Help Flow
     elif state == "OTHER_HELP_MENU":
+        if is_hindi:
+            return "आज मैं आपकी और क्या मदद कर सकता हूँ? कृपया नीचे दिए गए मेनू से एक विकल्प चुनें:"
         return "What else can I help you with today? Please select an option from the menu below:"
     elif state == "OTHER_WARRANTY_INFO":
-        return "### Warranty & Annual Maintenance Contract (AMC) Information\n\nAll SmartCare home appliances come with a standard 1-year manufacturer warranty. You can purchase AMC extensions to cover parts and labor. Please complete the form below to request a customized AMC plan quotation:"
+        if is_hindi:
+            return "### वारंटी और वार्षिक रखरखाव अनुबंध (AMC) की जानकारी\n\nसभी स्मार्टकेयर घरेलू उपकरण 1 साल की मानक निर्माता वारंटी के साथ आते हैं। पार्ट्स और लेबर को कवर करने के लिए आप एएमसी खरीद सकते हैं। अनुकूलित एएमसी योजना उद्धरण का अनुरोध करने के लिए कृपया नीचे दिया गया फॉर्म पूरा करें:"
+        return "### Centralized Warranty & Annual Maintenance Contract (AMC) Information\n\nAll SmartCare home appliances come with a standard 1-year manufacturer warranty. You can purchase AMC extensions to cover parts and labor. Please complete the form below to request a customized AMC plan quotation:"
     elif state == "OTHER_PROD_REGISTRATION":
+        if is_hindi:
+            return "### अपना उत्पाद पंजीकृत करें\n\nअपना उत्पाद पंजीकृत करने से वारंटी सहायता में तेजी आती है। कृपया नीचे दिए गए विवरण भरें:"
         return "### Register Your Product\n\nRegistering your product speeds up warranty support and provides you with software updates. Please fill in the details below:"
     elif state == "OTHER_INSTALL_REQUEST":
+        if is_hindi:
+            return "### उत्पाद स्थापना (Installation) का अनुरोध करें\n\nनए उपकरण को स्थापित करने में सहायता चाहिए? स्थापना सहायता का अनुरोध करने के लिए नीचे दिए गए विवरण प्रदान करें:"
         return "### Request Product Installation\n\nNeed help setting up a new appliance? Provide the details below to request installation support:"
     elif state == "OTHER_BILL_HELP":
+        if is_hindi:
+            return "### बिलिंग और चालान (Invoice) सहायता\n\nचालान की प्रति, बिलिंग विवाद, या भुगतान प्रश्नों के लिए, कृपया टिकट उठाने के लिए नीचे दिए गए फॉर्म का उपयोग करें:"
         return "### Billing and Invoice Support\n\nFor copy of invoice, billing disputes, or payment queries, please use the form below to raise a ticket:"
     elif state == "OTHER_CANCEL_RETURN":
+        if is_hindi:
+            return "### रद्दीकरण और वापसी का अनुरोध\n\nऑर्डर को रद्द करने या उत्पाद को वापस करने के लिए, कृपया यह अनुरोध फॉर्म जमा करें:"
         return "### Cancellation & Return Request\n\nTo cancel an unshipped order or return a delivered appliance, please submit this request form:"
     elif state == "OTHER_FEEDBACK":
+        if is_hindi:
+            return "### फीडबैक सबमिट करें\n\nआपका फीडबैक हमें अपने उत्पादों और सेवाओं को बेहतर बनाने में मदद करता है। कृपया नीचे अपने अनुभव को रेट करें:"
         return "### Submit Feedback\n\nYour feedback helps us improve our products and services. Please rate your experience below:"
     elif state == "OTHER_COMPLAINT":
+        if is_hindi:
+            return "### शिकायत दर्ज करें\n\nयदि आपके पास किसी सेवा या उत्पाद के साथ कोई अनसुलझा मुद्दा है, तो कृपया इसे नीचे विस्तार से बताएं ताकि हम इसे एक शिकायत प्रबंधक को सौंप सकें:"
         return "### Escalate a Complaint\n\nIf you have an unresolved issue with a service or product, please describe it in detail below so we can assign it to an escalation manager:"
     elif state == "OTHER_FAQ":
+        if is_hindi:
+            return "### अक्सर पूछे जाने वाले प्रश्न (FAQ)\n\nमदद लेख पढ़ने के लिए नीचे दिए गए किसी भी प्रश्न पर क्लिक करें। यदि आपको अभी भी मदद की आवश्यकता है, तो बेझिझक होम मेनू पर लौटें या टिकट उठाएं।"
         return "### Frequently Asked Questions (FAQ)\n\nBelow are some helpful answers. If you still need help, feel free to return to the home menu or raise a ticket."
     elif state == "TICKET_SUBMITTED":
+        if is_hindi:
+            return f"### ✅ अनुरोध सफलतापूर्वक प्रस्तुत किया गया!\n\nआपकी टिकट संदर्भ आईडी **{chat_data.get('ticket_id', 'N/A')}** है।\nहमारी टीम आपके अनुरोध की समीक्षा करेगी और जल्द ही आपसे संपर्क करेगी\n\nक्या आज मैं आपकी और कोई सहायता कर सकता हूँ?"
         return f"### ✅ Request Submitted Successfully!\n\nYour ticket reference ID is **{chat_data.get('ticket_id', 'N/A')}**.\nOur team will review your request and get back to you shortly.\n\nIs there anything else I can help you with today?"
     
     return "How else may I assist you?"
@@ -212,7 +322,15 @@ class ChatFSM:
         user_id = user.user_id
         customer_name = user.full_name
 
-        if state == "HOME_MENU":
+        if state == "SELECT_LANGUAGE":
+            if input_value in ["English", "Hindi"]:
+                self.chat_data["language"] = input_value
+                self.transition_to("HOME_MENU")
+                return True
+            else:
+                raise HTTPException(status_code=400, detail="Please select a valid language: English or Hindi.")
+
+        elif state == "HOME_MENU":
             if input_value == "A":
                 self.transition_to("PRODUCT_CATEGORY")
             elif input_value == "B":
@@ -304,26 +422,27 @@ class ChatFSM:
 
         elif state == "ISSUE_COLLECTION":
             # Accept dict or string
-            issue_desc = ""
             issue_opt = ""
             if isinstance(input_value, dict):
-                issue_desc = input_value.get("issue_description", "").strip()
                 issue_opt = input_value.get("issue_option", "").strip()
             else:
-                issue_desc = str(input_value).strip()
+                issue_opt = str(input_value).strip()
             
-            final_issue = issue_opt
-            if issue_opt == "Other" or not issue_opt:
-                if not issue_desc:
-                    raise HTTPException(status_code=400, detail="Please describe the issue you are facing.")
-                final_issue = issue_desc
-            elif issue_desc:
-                final_issue = f"{issue_opt} - {issue_desc}"
+            if not issue_opt:
+                raise HTTPException(status_code=400, detail="Please select your product issue option.")
                 
-            if not final_issue:
-                raise HTTPException(status_code=400, detail="Please select or describe your product issue.")
+            self.chat_data["issue_option"] = issue_opt
+            self.transition_to("ISSUE_EXPLANATION")
+            return True
+
+        elif state == "ISSUE_EXPLANATION":
+            issue_desc = str(input_value).strip()
+            if not issue_desc:
+                is_hindi = self.chat_data.get("language") == "Hindi"
+                err_msg = "कृपया अपनी समस्या का विस्तार से वर्णन करें।" if is_hindi else "Please describe the issue symptoms in detail."
+                raise HTTPException(status_code=400, detail=err_msg)
                 
-            self.chat_data["issue_description"] = final_issue
+            self.chat_data["issue_description"] = f"{self.chat_data.get('issue_option')} - {issue_desc}"
             self.transition_to("CONFIRM_DETAILS_BEFORE_BOOKING")
             return True
 

@@ -124,3 +124,27 @@ sequenceDiagram
 * **Interruption Handling:** The frontend monitors user actions (microphone clicks, keyboard typing) and instantly stops active HTML5 audio playback (or browser SpeechSynthesis) to ensure smooth, natural pacing.
 * **Deterministic Fallback:** If Groq services fail or rate-limit requests, the backend falls back to local regex-based parsing rules and standard text responses.
 * **SpeechSynthesis Fallback (Client-Side):** If the backend TTS generation fails (e.g. because terms need to be accepted on Groq Console, rate limits, or connectivity errors) or the generated audio file fails to load/play in the browser, the frontend automatically falls back to speaking the bot's reply using the browser's native **Web Speech API (`window.speechSynthesis`)**. This provides full resilience and robust client-side voice replies.
+
+---
+
+## 4. Voice Call Agent Architecture
+
+The Voice Call Center Agent uses a specialized voice-first sequence to simulate a real-time telephone conversation. It bypasses visual chat widgets, mapping the FSM transitions directly to voice feedback.
+
+```mermaid
+graph LR
+    VoiceInput[Voice Input] --> STT[Speech-to-Text <br> Whisper Large v3]
+    STT --> WE[Workflow Engine <br> ChatFSM State Machine]
+    WE --> LLM[Llama 3.3 <br> NLU & Conversational Response]
+    LLM --> TTS[Text-to-Speech <br> Canopy Orpheus / Sarvam Bulbul v3]
+    TTS --> VoiceOutput[Voice Output <br> HTML5 Audio Playback]
+```
+
+### Components Description:
+1. **Voice Input:** Captured in the browser from the microphone via `MediaRecorder` API. Real-time visual feedback of speech is provided via Web Speech API (`webkitSpeechRecognition`) for live transcription preview and silence detection (auto-submit).
+2. **STT (Speech-to-Text):** The recorded audio (WebM Blob) is submitted to the FastAPI endpoint `/call-center/calls/{call_id}/voice` and transcribed using Groq's Whisper model (`whisper-large-v3`).
+3. **Workflow Engine:** The parsed transcript is fed into the common `ChatFSM` workflow engine, ensuring validation rules, category routing, and databases transactions (appointments/tickets) are executed.
+4. **LLM (Language Model):** The engine leverages Llama 3.3 NLU parser to understand freeform spoken responses and map them to state variables, and to format state prompts into natural, friendly verbal replies (removing lists and markdown).
+5. **TTS (Text-to-Speech):** Synthesizes response text into audio bytes (WAV) using Canopy Labs model (`canopylabs/orpheus-v1-english`, voice `tara` with contextual vocal direction tags) for English, and Sarvam AI Bulbul v3 (`meera` voice) for natural Hindi speech (falls back to Hugging Face Vibevoice if Sarvam key is not configured).
+6. **Voice Output:** Raw audio bytes are returned as base64 in the API response payload, and automatically played using browser HTML5 Audio objects with volume and mute controls.
+

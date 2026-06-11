@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file. This projec
 
 ---
 
+## [1.2.0] - 2026-06-10
+### Added
+- Voice-First "Call Center Agent" tab simulating a real customer support phone call experience.
+- Automated start/end call routines, duration timers, and visual connection status badges.
+- Real-time client-side live transcription using browser webkitSpeechRecognition.
+- Continuous listening mode with configurable silence detection (auto-submit) and manual Push-to-Talk mode.
+- Speaker volume slider, voice mute/unmute toggles, and audio replay controls.
+- Automatic FSM step tracking, appointment booking summaries, and final structured LLM call summaries.
+- Relational SQLite table `call_sessions` linked to users and appointments.
+
 ## [1.1.0] - 2026-06-05
 ### Added
 - Voice-First pipeline converting user spoken commands into text and playing spoken replies.
@@ -15,7 +25,7 @@ All notable changes to this project will be documented in this file. This projec
 - Real-time voice interruption capability on the client, stopping assistant voice output when a user starts speaking/typing.
 - Microphone permission error handling, visual status logs (Listening, Transcribing, Thinking, Speaking, Error/Retry), and animated waveforms.
 
-## [1.0.0] - 2026-06-05
+## [1.0.0] - 2026-06-10
 ### Added
 - Decoupled client-server architecture using a FastAPI ASGI server and a React + Vite + TypeScript client app.
 - Interactive, responsive dashboard featuring scheduled visit reminders, active support tickets, and recent shipping orders summaries.
